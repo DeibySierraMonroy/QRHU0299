@@ -12,11 +12,10 @@
 --*************************************************************************
 --** FORMATO TABLA
 --*************************************************************************
-CREATE TABLE RHU.DOCUMENTO_INC_SUBTIPO (
-    DOCINCSUB_CODIGO                NUMBER PRIMARY KEY,
-    SUBTIPOINC_CODIGO               NUMBER NOT NULL,
-    DOCINCSUB_PRDCODIGO             VARCHAR2(15) NOT NULL,
-    DOCINCSUB_ESTADO                VARCHAR2(10) NOT NULL,
+CREATE TABLE RHU.DOCUMENTO_INC (
+    DOCINC_CODIGO                NUMBER PRIMARY KEY,
+    DOCINC_PRDCODIGO             VARCHAR2(15) NOT NULL,
+    DOCINC_ESTADO                VARCHAR2(10) NOT NULL,
     AUD_USUARIO                     VARCHAR2(15) NOT NULL,
     AUD_FECHA                       DATE NOT NULL,
 );
