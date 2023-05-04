@@ -17,8 +17,8 @@ CREATE TABLE RHU.SUBTIPO_INCAPACIDAD (
     SUBTIPOINC_NOMBRE               VARCHAR2(100) NOT NULL,
     SUBTIPOINC_ESTADO               VARCHAR2(15) NOT NULL,
     AUD_USUARIO                     VARCHAR2(15) NOT NULL,
-    AUD_FECHA                       DATE NOT NULL,
-);
+    AUD_FECHA                       DATE NOT NULL
+)
 /
 
 --*************************************************************************

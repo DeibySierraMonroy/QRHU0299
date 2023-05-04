@@ -17,8 +17,8 @@ CREATE TABLE RHU.INCAPACIDAD_ESTADO (
     INCESTADO_NOMBRE                VARCHAR2(15) NOT NULL,
     INCESTADO_ALIAS                 VARCHAR2(15) NOT NULL,
     AUD_USUARIO                     VARCHAR2(15) NOT NULL,
-    AUD_FECHA                       DATE NOT NULL,
-);
+    AUD_FECHA                       DATE NOT NULL
+)
 --*************************************************************************
 --** COMENTARIOS DE LAS COLUMNAS DE LA TABLA, NO EXCEDER LOS 30 CARACTERES.
 --*************************************************************************
