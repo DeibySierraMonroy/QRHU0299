@@ -183,8 +183,25 @@ INSERT INTO ADM.PROPIEDADES_DOCUMENTO (PRD_CODIGO, TPD_CODIGO,TDT_ORIGEN,TDT_OBL
    INSERT INTO ADM.PROPIEDADES_DOCUMENTO (PRD_CODIGO, TPD_CODIGO,TDT_ORIGEN,TDT_OBLIGATORIO,TDT_VERSION,AUD_FECHA,AUD_USUARIO)VALUES ('94','94','O','M','V',SYSDATE,USER);   
    INSERT INTO ADM.PROPIEDADES_DOCUMENTO (PRD_CODIGO, TPD_CODIGO,TDT_ORIGEN,TDT_OBLIGATORIO,TDT_VERSION,AUD_FECHA,AUD_USUARIO)VALUES ('95','95','O','M','V',SYSDATE,USER);                                                                                                                                                                                                                                                                                                                                                                                                      
 /
+ALTER TABLE RHU.incapacidad  DROP CONSTRAINT C_INC_ESTADO;
 ALTER TABLE RHU.incapacidad ADD  
 CONSTRAINT "C_INC_ESTADO" CHECK (INC_ESTADO
 IN ('CAP', 'PEN', 'APR', 'REH', 'ANU', 'DEV', 'RAT', 'RNN', 'INR', 'INP', 'RIN','RRI','CPT')) ENABLE;
 
-ALTER TABLE RHU.incapacidad  DROP CONSTRAINT C_INC_ESTADO;
+CREATE SEQUENCE RHU.SEQ_INC_NUMERO INCREMENT BY 101002 MAXVALUE 9999999999999999999999999999 MINVALUE 1 NOCACHE;
+GRANT ALL ON RHU.SEQ_INC_NUMERO TO PUBLIC;
+
+CREATE OR REPLACE TRIGGER "RHU"."DB_INC_NUMERO" 
+Before
+  INSERT ON  RHU.INCAPACIDAD REFERENCING NEW AS NEW
+  FOR EACH ROW
+
+  Begin
+	Select SEQ_INC_NUMERO.Nextval
+      INTO :NEW.INC_NUMERO
+      FROM dual;	
+  --
+EXCEPTION
+  WHEN OTHERS THEN
+    raise_application_error(-20001, 'Error secuencia DB_INC_NUMERO'||sqlerrm);
+End;
