@@ -1,5 +1,5 @@
 /
- create or replace PACKAGE RHU.QB_APLICATION_JRHU0055 AS 
+create or replace PACKAGE                             RHU.QB_APLICATION_JRHU0055 AS 
  --**********************************************************************************************************
 --** NOMBRE SCRIPT        : QRHU0299
 --** OBJETIVO             : ADMINISTRACION DE GESTOR DE INCAPACIDADES
@@ -168,6 +168,7 @@ PROCEDURE PL_VALIDAR_TAXRADICADO(
 PROCEDURE PL_ACTUALIZAR_EST_RADICADO(
     NMRADICADO IN NUMBER,
     VCESTADO IN VARCHAR,
+    VCDESCRIP IN VARCHAR2,
     VCESTADO_PROCESO OUT VARCHAR2,
     VCMENSAJE_PROCESO OUT VARCHAR2
 );
@@ -188,6 +189,12 @@ PROCEDURE PL_NOTIFICACION(
   VCMENSAJE_PROCESO OUT VARCHAR2
 );
 
+PROCEDURE PL_LISTAR_ESTADO_SITIO(
+    RCESTADO OUT REFCURSOR,
+    VCESTADO_PROCESO OUT VARCHAR2,
+    VCMENSAJE_PROCESO OUT VARCHAR2
+);
+
 PROCEDURE PL_CREAR_GERS(
     NMNITEMP IN NUMBER,
     NMDOCUMEPL IN NUMBER,
@@ -198,10 +205,25 @@ PROCEDURE PL_CREAR_GERS(
     VCMENSAJE_PROCESO OUT VARCHAR2
 );
 
+PROCEDURE PL_INSERTAR_OBSRADICADO(
+       NMRADICADO IN NUMBER,
+       VCESTADO IN VARCHAR2,
+       VCDESCRIP IN VARCHAR2,
+       VCESTADO_PROCESO OUT VARCHAR2,
+       VCMENSAJE_PROCESO OUT VARCHAR2
+);
+
+PROCEDURE PL_OBSERVACION_POR_RADICADO(
+    RCINC OUT REFCURSOR,
+    NMIN_RADICACION IN NUMBER,
+    VCESTADO_PROCESO OUT VARCHAR2,
+    VCMENSAJE_PROCESO OUT VARCHAR2
+);
+
 END QB_APLICATION_JRHU0055;
 
 / 
-create or replace PACKAGE BODY     RHU.QB_APLICATION_JRHU0055 AS
+create or replace PACKAGE BODY                    RHU.QB_APLICATION_JRHU0055 AS
  --**********************************************************************************************************
 --** NOMBRE SCRIPT        : QRHU0299
 --** OBJETIVO             : CONTIENE LA ADMINISTRACION DE GESTOR DE INCAPACIDADES
@@ -220,22 +242,40 @@ PROCEDURE PL_OBTENER_INCAPACIDADES_EPL(
 ) IS 
 BEGIN 
 OPEN RCINC FOR
-SELECT DISTINCT(INC.INC_RADICACION),
-INC.*,
-FB_NOM_EMPRESA(INC.TDC_TD_PAL, INC.EMP_ND_PAL) NOMBRE_EMPRESA_PRINCIPAL,
+SELECT DISTINCT(INC2.INC_RADICACION),
+INC2.*,
+S3.*,
+EST.EST_OBSERVACION ESTADO_SITIO,
+S3.OBS_ESTADO ESTADO_OBSERVACION,
+FB_NOM_EMPRESA(INC2.TDC_TD_PAL, INC2.EMP_ND_PAL) NOMBRE_EMPRESA_PRINCIPAL,
 TINC.TIP_NOMBRE TIPO_INCAPACIDAD,
 SINC.SBT_NOMBRE SUB_TIPO_INCAPACIDAD
-FROM 
-RHU.RAD_DOCUMENTOS RAD , INCAPACIDAD INC ,
-RHU.TIP_INCAPACIDAD TINC,  RHU.SBT_INCAPACIDAD SINC
-WHERE RAD.INC_RADICACION = INC.INC_RADICACION
-AND TINC.TIP_CODIGO=SINC.TIP_CODIGO
-AND SINC.SBT_CODIGO = INC.SUBTIPOINC_CODIGO
-AND INC.TDC_TD_PAL = VCTIPODOCUMENTOEMPRE
+FROM (
+SELECT OBS2.INC_RADICACION, OBS2.OBS_ESTADO FROM OBSERVACION_INCAPACIDAD OBS2 ,
+(SELECT MAX(S.SECUENCIA) sec,s.INC_RADICACION 
+FROM
+(SELECT MAX(OBS_SECUENCIA)SECUENCIA,INC_RADICACION ,OBS_ESTADO 
+FROM OBSERVACION_INCAPACIDAD
+WHERE INC_RADICACION IN (
+SELECT INC_RADICACION 
+FROM  INCAPACIDAD INC
+WHERE INC.TDC_TD_PAL = VCTIPODOCUMENTOEMPRE
 AND INC.EMP_ND_PAL = NMDOCUMENTOPRINCIPAL
 AND INC.TDC_TD_EPL = VCTIPODOCUMENTO
-AND INC.EPL_ND = NMDOCUMENTO
-ORDER BY INC_FECHA_CREACION ASC;
+AND INC.EPL_ND = NMDOCUMENTO)
+GROUP BY(INC_RADICACION,OBS_ESTADO)) S
+GROUP BY(S.INC_RADICACION)) S2
+WHERE S2.INC_RADICACION = OBS2.INC_RADICACION
+AND S2.SEC=OBS2.OBS_SECUENCIA) S3,
+RHU.RAD_DOCUMENTOS RAD , INCAPACIDAD INC2 ,
+RHU.TIP_INCAPACIDAD TINC,  RHU.SBT_INCAPACIDAD SINC,
+ ESTADO_INC_PORTAL_TRABAJADOR EST
+WHERE RAD.INC_RADICACION = INC2.INC_RADICACION
+AND TINC.TIP_CODIGO=SINC.TIP_CODIGO
+AND SINC.SBT_CODIGO = INC2.SUBTIPOINC_CODIGO
+AND S3.INC_RADICACION = INC2.INC_RADICACION
+AND EST.OBS_ESTADO = S3.OBS_ESTADO
+ORDER BY INC2.INC_FECHA_CREACION ASC;
 
 VCESTADO_PROCESO := 'S';
 VCMENSAJE_PROCESO := 'Procedimiento ejecutado exitosamente';
@@ -705,7 +745,7 @@ VALUES (
         VCCODENFER,
         NMCONTINCA,
         VCFECINCIDENTE,
-        TO_DATE(VCFECINICIOINCA,'dd/mm/yyyy'),
+        TO_DATE(VCFECINICIOINCA,'DD/MM/YYYY'),
         NMDIAS,
         VCFECHAFINAL,
         VCPRORROGA,
@@ -722,7 +762,7 @@ VALUES (
         2,
         SYSDATE,
         VCPERIODO,
-        TO_DATE(VCFECHFUERMATE,'dd/mm/yyyy'),
+        TO_DATE(VCFECHFUERMATE,'DD/MM/YYYY'),
         NMSUBCONTI
         )
         returning INC_RADICACION into NMRADICADO;     
@@ -774,14 +814,14 @@ VCURL:='https://apps.genialw.com/SitioTrabajador/';
 RHU.QB_APLICATION_JRHU0055.PL_NOTIFICACION(
    VCCORREOEPL,
     'auxincapacidades3@activos.com.co',
-   'Â¡Hemos recibido tu radicacion!' || NMIDENTIFICACIONEPL || ' / ' || NMRADICADO,
+   '¡Hemos recibido tu radicacion!' || NMIDENTIFICACIONEPL || ' / ' || NMRADICADO,
     '<div style="text-align: center;">
-    <h1>Â¡Ya tenemos respuesta de tu caso!</h1>
+    <h1>¡Hemos recibido tu radicacion!</h1>
     <p>Nombre de la persona: <strong>'|| VCNOMBRECOMPLETO ||'</strong></p>
     <p>ID de la radicacion: <strong>'|| NMRADICADO ||'</strong></p>
     <p>Ya puedes hacerle seguimiento en nuestro portal del trabajador.</p>
     <button style="background-color: #f2a325; border: none; color: white; padding: 10px 20px; border-radius: 5px;">
-    <i class="fa fa-search"></i> <a href="'||VCURL||VCPARAMETRO||'" target="_blank"> Consultalo aquiÂ­</a> 
+    <i class="fa fa-search"></i> <a href="'||VCURL||VCPARAMETRO||'" target="_blank"> Consultalo aqui­</a> 
     </button>
     </div>',
    VCPROCESO,
@@ -1019,14 +1059,16 @@ BEGIN
    SELECT CTO_FECRET
    INTO VCRETIRO 
    FROM CONTRATO CTO , CTORETIRO CTR
-   WHERE CTO.CTO_NUMERO = CTR.CTO_NUMERO
+   WHERE  CTO.TDC_TD = CTR.TDC_TD
+   AND CTO.EMP_ND = CTR.EMP_ND
+   AND CTO.CTO_NUMERO = CTR.CTO_NUMERO
    AND CTR.CTO_NUMERO=NMCONTRATO
-   AND CTO.TDC_TD  = VCTIPDOCUMEEPL
+   AND CTO.TDC_TD  = VCTIPODOCUMPAL
    AND CTO.EMP_ND  = NMDOCUMENTOPAL;
-  IF  TO_DATE(VCFECHAFINAL,'DD/MM/YYYY') > TO_DATE(VCRETIRO,'DD/MM/YYYY') THEN
-    RAISE EXRETIRO;
-   END IF;    
-  END;
+   EXCEPTION 
+   WHEN NO_DATA_FOUND THEN
+    VCRETIRO := TO_DATE('01/01/9999','DD/MM/YYYY');
+   END;
 
   --PERMITE VALIDAR SI EXISTE UNA RADICACION EN EL SISTEMA YA RADICA EN EL MISMO INTERVALO DE TIEMPO
   BEGIN
@@ -1038,7 +1080,7 @@ BEGIN
   AND TDC_TD_PAL = VCTIPODOCUMPAL
   AND EMP_ND_PAL = NMDOCUMENTOPAL
   AND CTO_NUMERO = NMCONTRATO
-  AND VCFECHAINICIO 
+  AND TO_DATE(VCFECHAINICIO,'DD/MM/YYYY') 
   BETWEEN INC_FECINI AND INC_FECFIN
   GROUP BY (INC_FECINI,INC_FECFIN);
   IF NMREGISTRO > 0 THEN
@@ -1121,6 +1163,7 @@ END PL_VALIDAR_TAXRADICADO;
 PROCEDURE PL_ACTUALIZAR_EST_RADICADO(
     NMRADICADO IN NUMBER,
     VCESTADO IN VARCHAR,
+    VCDESCRIP IN VARCHAR2,
     VCESTADO_PROCESO OUT VARCHAR2,
     VCMENSAJE_PROCESO OUT VARCHAR2
 )IS
@@ -1132,13 +1175,23 @@ VCPROCESO VARCHAR(200);
 VCURL VARCHAR(200);
 VCPARAMETRO VARCHAR(200);
 NMPRINCIPAL NUMBER(20);
+VCESTADOINC VARCHAR(200);
+NMCODINC NUMBER(20);
 
 BEGIN
+
+--Se insertar en la tabla  OBSERVACION_INCAPACIDAD 
+PL_INSERTAR_OBSRADICADO(NMRADICADO,VCESTADO,VCDESCRIP,VCESTADO_PROCESO,VCMENSAJE_PROCESO);
+
+-- Se realiza la homologacion de estados entre la tabla OBSERVACION_INCAPACIDAD  Y INCAPACIDAD
+SELECT ESIN_CODIGO INTO NMCODINC FROM  RHU.ESTADO_INC_PORTAL_TRABAJADOR WHERE OBS_ESTADO = VCESTADO;
+SELECT INC_ESTADO  INTO VCESTADOINC  FROM RHU.EST_INCAPACIDAD WHERE ESIN_CODIGO = NMCODINC;
+
+-- Se realiza el update en la tabla INCAPACIDAD
 UPDATE RHU.INCAPACIDAD 
-SET INC_ESTADO = VCESTADO
+SET INC_ESTADO = VCESTADOINC
 WHERE INC_RADICACION = NMRADICADO;
 COMMIT;
-
 
 -- Buscamos la informacion del empleado para poder notificarlo.
 SELECT INC.EPL_ND NUMERO_DOCUMENTO, 
@@ -1158,36 +1211,36 @@ VCPARAMETRO:=fb_constante_car('URL_SITIO',sysdate,'NI',NMPRINCIPAL,NULL,NULL,NUL
 
 VCURL:='https://apps.genialw.com/SitioTrabajador/';
 
-IF VCESTADO = 'DEV' THEN
+IF VCESTADO = 'DEVUELTA' THEN
 RHU.QB_APLICATION_JRHU0055.PL_NOTIFICACION(
    VCCORREOEPL,
     'auxincapacidades3@activos.com.co',
-   'Â¡Ya tenemos respuesta de tu caso!' || NMIDENTIFICACIONEPL || ' / ' || NMRADICADO,
+   '¡Ya tenemos respuesta de tu caso!' || NMIDENTIFICACIONEPL || ' / ' || NMRADICADO,
     '<div style="text-align: center;">
-    <h1>Â¡Ya tenemos respuesta de tu caso!</h1>
+    <h1>¡Ya tenemos respuesta de tu caso!</h1>
     <p>Nombre de la persona: <strong>'|| VCNOMBRECOMPLETO ||'</strong></p>
     <p>ID de la radicacion: <strong>'|| NMRADICADO ||'</strong></p>
     <p>Ya puedes hacerle seguimiento en nuestro portal del trabajador.</p>
     <button style="background-color: #f2a325; border: none; color: white; padding: 10px 20px; border-radius: 5px;">
-    <i class="fa fa-search"></i> <a href="'||VCURL||VCPARAMETRO||'" target="_blank"> Consultalo aquiÂ­</a> 
+    <i class="fa fa-search"></i> <a href="'||VCURL||VCPARAMETRO||'" target="_blank"> Consultalo aqui­</a> 
     </button>
     </div>',
    VCPROCESO,
    VCESTADO_PROCESO,
    VCMENSAJE_PROCESO);
 END IF;
-IF VCESTADO = 'CPT' THEN
+IF VCESTADO = 'EN CAPTURA' THEN
 RHU.QB_APLICATION_JRHU0055.PL_NOTIFICACION(
-   VCCORREOEPL,
+     VCCORREOEPL,
     'auxincapacidades3@activos.com.co',
-   'Â¡Hemos recibido tu radicacion!' || NMIDENTIFICACIONEPL || ' / ' || NMRADICADO,
+   '¡Hemos recibido tu radicacion!' || NMIDENTIFICACIONEPL || ' / ' || NMRADICADO,
     '<div style="text-align: center;">
-    <h1>Â¡Ya tenemos respuesta de tu caso!</h1>
+    <h1>¡Hemos recibido tu radicacion!</h1>
     <p>Nombre de la persona: <strong>'|| VCNOMBRECOMPLETO ||'</strong></p>
     <p>ID de la radicacion: <strong>'|| NMRADICADO ||'</strong></p>
     <p>Ya puedes hacerle seguimiento en nuestro portal del trabajador.</p>
     <button style="background-color: #f2a325; border: none; color: white; padding: 10px 20px; border-radius: 5px;">
-    <i class="fa fa-search"></i> <a href="'||VCURL||VCPARAMETRO||'" target="_blank"> Consultalo aquiÂ­</a> 
+    <i class="fa fa-search"></i> <a href="'||VCURL||VCPARAMETRO||'" target="_blank"> Consultalo aqui­</a> 
     </button>
     </div>',
    VCPROCESO,
@@ -1393,5 +1446,98 @@ raise_application_error(
      causada por: ' || SQLERRM || ' -- Linea: ' || dbms_utility.format_error_backtrace());
 
 END PL_NOTIFICACION;
+
+PROCEDURE PL_LISTAR_ESTADO_SITIO(
+    RCESTADO OUT REFCURSOR,
+    VCESTADO_PROCESO OUT VARCHAR2,
+    VCMENSAJE_PROCESO OUT VARCHAR2
+)IS
+BEGIN
+OPEN RCESTADO FOR
+SELECT *
+FROM RHU.INC_OBS_EST;
+
+VCESTADO_PROCESO := 'S';
+VCMENSAJE_PROCESO := 'Procedimiento ejecutado exitosamente';
+EXCEPTION
+WHEN OTHERS THEN 
+ VCESTADO_PROCESO := 'N';
+raise_application_error(
+    -20001,
+    'ERROR no controlado en 
+     RHU.QB_APLICATION_JRHU0055.PL_LISTAR_ESTADO_SITIO,
+     causada por: ' || SQLERRM || ' -- Linea: ' || dbms_utility.format_error_backtrace());
+END PL_LISTAR_ESTADO_SITIO;
+
+PROCEDURE PL_INSERTAR_OBSRADICADO(
+       NMRADICADO IN NUMBER,
+       VCESTADO IN VARCHAR2,
+       VCDESCRIP IN VARCHAR2,
+       VCESTADO_PROCESO OUT VARCHAR2,
+       VCMENSAJE_PROCESO OUT VARCHAR2
+)IS
+NMSECUENCIA NUMBER(23);
+BEGIN
+SELECT  NVL(max(obs_secuencia),0)+1 
+INTO  NMSECUENCIA
+FROM OBSERVACION_INCAPACIDAD 
+WHERE INC_RADICACION=NMRADICADO ;
+  INSERT INTO 
+   OBSERVACION_INCAPACIDAD (
+    INC_RADICACION,
+    OBS_SECUENCIA,
+    OBS_DESCRIPCION,
+    OBS_USUARIO,
+    OBS_FECHA,
+    OBS_ESTADO
+   )VALUES(
+    NMRADICADO,
+    NMSECUENCIA,
+    VCDESCRIP,
+    user,
+    sysdate,
+    VCESTADO
+   );
+
+ COMMIT;
+
+ VCESTADO_PROCESO := 'S';
+ VCMENSAJE_PROCESO := 'Procedimiento ejecutado exitosamente';
+
+EXCEPTION
+WHEN NO_DATA_FOUND THEN
+VCESTADO_PROCESO := 'N';
+ VCMENSAJE_PROCESO := 'No se pudo acutualizar el estado debido a : ' || SQLERRM || ' -- Linea: ' || dbms_utility.format_error_backtrace();
+
+WHEN OTHERS THEN 
+VCESTADO_PROCESO := 'N';
+VCMENSAJE_PROCESO := 'ERROR no controlado en RHU.QB_APLICATION_JRHU0055.PL_INSERTAR_OBSRADICADO, causada por: 
+            ' || SQLERRM || ' -- Linea: ' || dbms_utility.format_error_backtrace();
+
+END PL_INSERTAR_OBSRADICADO;
+
+
+    PROCEDURE PL_OBSERVACION_POR_RADICADO(
+    RCINC OUT REFCURSOR,
+    NMIN_RADICACION IN NUMBER,
+    VCESTADO_PROCESO OUT VARCHAR2,
+    VCMENSAJE_PROCESO OUT VARCHAR2) IS
+BEGIN
+    OPEN RCINC FOR
+        SELECT *
+     FROM OBSERVACION_INCAPACIDAD
+     WHERE INC_RADICACION = NMIN_RADICACION;
+    VCESTADO_PROCESO := 'S';
+    VCMENSAJE_PROCESO := 'Procedimiento ejecutado exitosamente.';
+    EXCEPTION
+            WHEN OTHERS THEN
+                VCESTADO_PROCESO := 'N';
+raise_application_error(
+    -20001,
+    'ERROR no controlado en 
+     RHU.QB_APLICATION_JRHU0055.PL_OBTENER_INCAPACIDADES_CPT,
+     causada por: ' || SQLERRM || ' -- Linea: ' || dbms_utility.format_error_backtrace());    
+END PL_OBSERVACION_POR_RADICADO;
+
 
 END QB_APLICATION_JRHU0055;
